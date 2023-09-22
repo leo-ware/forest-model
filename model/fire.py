@@ -1,28 +1,24 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from heapq import heappush, heappop
+from scipy.signal import fftconvolve
 
+from model.layout_roads import flood_fill
 from model.constants import N
 
 def fire_avg_interarrival(dist):
     return 18*np.log(dist)
 
-from model.layout_roads import flood_fill
-from heapq import heappush, heappop
-from scipy.signal import fftconvolve
-
-def fire_sim(G=5):
+def fire_sim(G=N):
     start_chance = 1/(3*fire_avg_interarrival(100))
     spread_chance = 1/np.e
 
-    # edges_x = np.array([0]*G + [G-1]*G + list(range(G)) + list(range(G)))
-    # edges_y = np.array(list(range(G)) + list(range(G)) + [0]*G + [G-1]*G)
+    edges_x = np.array([0]*G + [G-1]*G + list(range(G)) + list(range(G)))
+    edges_y = np.array(list(range(G)) + list(range(G)) + [0]*G + [G-1]*G)
 
-    # fire_init = np.random.random(size=G*4) < start_chance
-    # wx = edges_x[fire_init]
-    # wy = edges_y[fire_init]
-
-    wx = np.array([0])
-    wy = np.array([0])
+    fire_init = np.random.random(size=G*4) < start_chance
+    wx = edges_x[fire_init]
+    wy = edges_y[fire_init]
 
     fire_state = np.zeros((G, G))
     fire_state[wx, wy] = True
@@ -33,13 +29,19 @@ def fire_sim(G=5):
         [1, 1, 1],
         [0, 1, 0]
     ])
+    
+    for d in sorted(np.unique(dist).astype(int)):
+        if not d:
+            continue
 
-    for d in sorted(np.unique(dist)):
-        if d != 0:
-            fire_neighbors = (fftconvolve(fire_state, neighborhood, method='same').astype(int) > 0).astype(int)
-            cx, cy = np.where((dist == d) & fire_neighbors)
-            spread = np.random.random(size=len(cx)) < spread_chance
-            fire_state[cx[spread], cy[spread]] = True
+        fire_neighbors = (fftconvolve(fire_state, neighborhood, mode='same').astype(int) > 0).astype(int)
+        cx, cy = np.where((dist == d) & fire_neighbors)
+        spread = np.random.random(size=len(cx)) < spread_chance
+        if not np.any(spread):
+            break
+        fire_state[cx[spread], cy[spread]] = 1
+    
+    return fire_state.astype(int)
 
     # plt.imshow(fire_state)
     # plt.colorbar()
